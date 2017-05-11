@@ -1,0 +1,133 @@
+timeseries_prediction-deep_learning
+========================================================
+author: 
+date: 
+autosize: true
+
+
+
+What is/are ... 
+========================================================
+
+&nbsp;
+
+- timeseries?
+- deep learning?
+- time series prediction with deep learning?
+
+
+A timeseries 
+========================================================
+
+&nbsp;
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(forecast)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(ggfortify)
+library(tidyr)
+```
+
+
+```{r, echo=FALSE}
+df <- read_csv("monthly-sales-of-tasty-cola.csv", col_names = c("month", "sales"), skip = 1,
+               col_types = cols(month = col_date("%y-%m")))
+ggplot(df, aes(x = month, y = sales)) + geom_line() + ggtitle("Monthly sales of Tasty Cola")
+```
+
+
+Another one ...
+========================================================
+
+&nbsp;
+
+```{r, echo=FALSE}
+df <- read_csv("internet-traffic-data-in-bits-fr.csv", col_names = c("hour", "bits"), skip = 1)
+ggplot(df, aes(x = hour, y = bits)) + geom_line() + ggtitle("Internet traffic")
+```
+
+
+Another one ...
+========================================================
+
+&nbsp;
+
+```{r, echo=FALSE}
+df <- read_csv("internet-traffic-data-in-bits-fr.csv", col_names = c("hour", "bits"), skip = 1)
+ggplot(df, aes(x = hour, y = bits)) + geom_line() + ggtitle("Internet traffic")
+```
+
+
+
+And another.
+========================================================
+
+&nbsp;
+
+```{r, echo=FALSE}
+df <- read_csv("winning-times-for-the-mens-400-m.csv", col_names = c("year", "seconds"), skip = 1)
+ggplot(df, aes(x = year, y = seconds)) + geom_line() + ggtitle("Men's 400m winning times")
+```
+
+
+Sometimes we may compare several timeseries.
+========================================================
+
+&nbsp;
+
+```{r, echo=FALSE}
+df <- read_csv("deaths-from-homicides-and-suicid.csv", col_names = c("year", "homicide", "suicide"), skip = 1)
+df <- gather(df, key = 'type', value = 'deaths', homicide:suicide)
+ggplot(df, aes(x = year, y = deaths, color = type)) + geom_line() + scale_colour_manual(values=c("green","blue")) +
+  ggtitle("Australia: Homicides and suicides")
+```
+
+
+Sometimes we may have relevant external information (1).
+========================================================
+
+&nbsp;
+
+So far, this is nothing but a univariate timeseries of lynx population.
+
+```{r, echo=FALSE}
+data("lynx")
+autoplot(lynx) + ggtitle("Lynx population over time")
+```
+
+
+Sometimes we may have relevant external information (2).
+========================================================
+
+&nbsp;
+
+Enter:
+
+<table>
+<tr>
+<td><img src='Lynx.gif' width='300px' /></td>
+</tr>
+<tr><td class='src'>Source: [1]</td></tr>
+</table>
+
+
+Sometimes we may have relevant external information (3).
+========================================================
+
+
+```{r, echo=FALSE}
+df <- read_delim("lynxhare.csv", delim = ";") %>% select(year, hare, lynx)
+autoplot(lynx) + ggtitle("Lynx population over time")
+```
+
+
+Sources (1)
+========================================================
+incremental:false
+
+&nbsp;
+
+[1] Rudolfo's Usenet Animal Pictures Gallery (link no longer exists)
+
