@@ -31,10 +31,10 @@ library(tidyr)
 ```
 
 
-```{r, echo=FALSE}
-df <- read_csv("monthly-sales-of-tasty-cola.csv", col_names = c("month", "sales"), skip = 1,
+```{r}
+cola_df <- read_csv("monthly-sales-of-tasty-cola.csv", col_names = c("month", "sales"), skip = 1,
                col_types = cols(month = col_date("%y-%m")))
-ggplot(df, aes(x = month, y = sales)) + geom_line() + ggtitle("Monthly sales of Tasty Cola")
+ggplot(cola_df, aes(x = month, y = sales)) + geom_line() + ggtitle("Monthly sales of Tasty Cola")
 ```
 
 
@@ -43,22 +43,10 @@ Another one ...
 
 &nbsp;
 
-```{r, echo=FALSE}
-df <- read_csv("internet-traffic-data-in-bits-fr.csv", col_names = c("hour", "bits"), skip = 1)
-ggplot(df, aes(x = hour, y = bits)) + geom_line() + ggtitle("Internet traffic")
+```{r}
+traffic_df <- read_csv("internet-traffic-data-in-bits-fr.csv", col_names = c("hour", "bits"), skip = 1)
+ggplot(traffic_df, aes(x = hour, y = bits)) + geom_line() + ggtitle("Internet traffic")
 ```
-
-
-Another one ...
-========================================================
-
-&nbsp;
-
-```{r, echo=FALSE}
-df <- read_csv("internet-traffic-data-in-bits-fr.csv", col_names = c("hour", "bits"), skip = 1)
-ggplot(df, aes(x = hour, y = bits)) + geom_line() + ggtitle("Internet traffic")
-```
-
 
 
 And another.
@@ -66,9 +54,9 @@ And another.
 
 &nbsp;
 
-```{r, echo=FALSE}
-df <- read_csv("winning-times-for-the-mens-400-m.csv", col_names = c("year", "seconds"), skip = 1)
-ggplot(df, aes(x = year, y = seconds)) + geom_line() + ggtitle("Men's 400m winning times")
+```{r}
+win_df <- read_csv("winning-times-for-the-mens-400-m.csv", col_names = c("year", "seconds"), skip = 1)
+ggplot(win_df, aes(x = year, y = seconds)) + geom_line() + ggtitle("Men's 400m winning times")
 ```
 
 
@@ -77,10 +65,10 @@ Sometimes we may compare several timeseries.
 
 &nbsp;
 
-```{r, echo=FALSE}
-df <- read_csv("deaths-from-homicides-and-suicid.csv", col_names = c("year", "homicide", "suicide"), skip = 1)
-df <- gather(df, key = 'type', value = 'deaths', homicide:suicide)
-ggplot(df, aes(x = year, y = deaths, color = type)) + geom_line() + scale_colour_manual(values=c("green","blue")) +
+```{r}
+deaths_df <- read_csv("deaths-from-homicides-and-suicid.csv", col_names = c("year", "homicide", "suicide"), skip = 1)
+df <- gather(deaths_df, key = 'type', value = 'deaths', homicide:suicide)
+ggplot(deaths_df, aes(x = year, y = deaths, color = type)) + geom_line() + scale_colour_manual(values=c("green","blue")) +
   ggtitle("Australia: Homicides and suicides")
 ```
 
@@ -92,7 +80,7 @@ Sometimes we may have relevant external information (1).
 
 So far, this is nothing but a univariate timeseries of lynx population.
 
-```{r, echo=FALSE}
+```{r}
 data("lynx")
 autoplot(lynx) + ggtitle("Lynx population over time")
 ```
@@ -117,10 +105,225 @@ Sometimes we may have relevant external information (3).
 ========================================================
 
 
-```{r, echo=FALSE}
-df <- read_delim("lynxhare.csv", delim = ";") %>% select(year, hare, lynx)
-autoplot(lynx) + ggtitle("Lynx population over time")
+```{r}
+lynx_df <- read_delim("lynxhare.csv", delim = ";") %>% select(year, hare, lynx) %>% filter(between(year, 1890, 1945)) %>% mutate(hare = scale(hare), lynx = scale(lynx))
+df <- gather(lynx_df, key = 'species', value = 'number', hare:lynx)
+ggplot(lynx_df, aes(x = year, y = number, color = species)) + geom_line() + scale_colour_manual(values=c("green","red")) +
+  ggtitle("Lynx and hare populations over time")
 ```
+
+
+
+Classical timeseries modeling
+========================================================
+
+&nbsp;
+
+- Stationarity 
+- Decomposition
+- Autocorrelation
+
+
+
+Wait. This is going to be about deep learning...
+========================================================
+
+&nbsp;
+
+... why does this even matter?
+
+
+Stationarity (1)
+========================================================
+
+&nbsp;
+
+- We want to forecast future time series
+- We need fundamental statistical properties like mean, variance ...
+- What even is the mean, or the variance, of a time series?
+
+tbd pics
+
+
+Stationarity (2)
+========================================================
+
+&nbsp;
+
+- If a time series $y_{t}$ is stationary, then for all $s$, the distribution of ($y_{t}$,…, $y_{t+s}$) does not depend on $t$.
+- By ergodicity, after we remove any trends and seasonality effects, we may assume that the residual series is stationary in the mean: $\mu(t)=t$
+
+
+Timeseries decomposition
+========================================================
+
+&nbsp;
+
+```{r}
+autoplot(stl(ts(cola_df$sales, frequency=12), s.window = 12))
+```
+
+
+TBD: differencing / lograithm!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+========================================================
+
+&nbsp;
+
+
+
+Autocorrelation (1)
+========================================================
+
+If consecutive values were not related, there would be no way of forecasting!
+
+```{r}
+s1 <- ts(rnorm(100))
+autoplot(s1)
+ggfortify:::autoplot.acf(acf(s1, plot = FALSE), conf.int.fill = '#00cccc', conf.int.value = 0.95)
+```
+
+Autocorrelation (2)
+========================================================
+
+&nbsp;
+
+```{r}
+s2 <- ts(1:100 + rnorm(100, 2, 4))
+autoplot(s2)
+ggfortify:::autoplot.acf(acf(s2, plot = FALSE), conf.int.fill = '#00cccc', conf.int.value = 0.95)
+```
+
+
+Autocorrelation (3)
+========================================================
+
+&nbsp;
+
+```{r}
+s3 <- ts(rep(1:5,20) + rnorm(100, sd= 0.5))
+autoplot(s3)
+ggfortify:::autoplot.acf(acf(s3, plot = FALSE), conf.int.fill = '#00cccc', conf.int.value = 0.95)
+```
+
+
+Internet traffic forecasted, the classical way (1)
+========================================================
+
+&nbsp;
+
+Here's the time series again.
+
+```{r}
+ggplot(traffic_df, aes(x = hour, y = bits)) + geom_line() + ggtitle("Internet traffic")
+```
+
+Internet traffic forecasted, the classical way (2)
+========================================================
+
+&nbsp;
+
+Let's first look at decomposition.
+
+```{r}
+traffic_ts <- msts(traffic_df$bits,seasonal.periods = c(24, 24*7))
+autoplot(stl(traffic_ts, s.window = 7 * 24))
+```
+
+
+Internet traffic forecasted, the classical way (3)
+========================================================
+
+&nbsp;
+
+```{r}
+ggfortify:::autoplot.acf(acf(traffic_ts, plot = FALSE), conf.int.fill = '#00cccc', conf.int.value = 0.95)
+```
+
+
+Internet traffic forecasted, the classical way (4)
+========================================================
+
+&nbsp;
+
+```{r}
+tbats_fit <- tbats(traffic_ts)
+tbats_fit
+plot(forecast(tbats_fit, h=7*24))
+```
+
+
+Internet traffic forecasted, the classical way (3)
+========================================================
+
+&nbsp;
+
+```{r}
+traffic_df_wd <- traffic_df %>% mutate(weekend = if_else(wday(hour) %in% c(7,1), 1, 0))
+ggplot(traffic_df_wd, aes(x=hour, y=bits, color=weekend)) + geom_point()
+#arima_fit <- auto.arima(traffic_df_wd$bits, xreg = traffic_df_wd$weekend, trace = TRUE)
+arima_fit <- auto.arima(ts(traffic_df_wd$bits, frequency = 24 * 7), xreg = traffic_df_wd$weekend, trace = TRUE)
+arima_fit
+plot(forecast(arima_fit, h=7*24))
+```
+
+
+Internet traffic forecasted, the classical way (3)
+========================================================
+
+&nbsp;
+
+```{r}
+traffic_diff1 <- diff(traffic_ts, 7*24)
+```
+
+
+
+
+========================================================
+
+&nbsp;
+
+```{r}
+
+
+```
+
+
+?spec
+?spec
+?spec
+?spec
+?spec
+?spec
+?spec
+?spec
+?spec
+?spec
+
+
+========================================================
+
+&nbsp;
+
+```{r}
+
+```
+
+
+
+========================================================
+
+&nbsp;
+
+```{r}
+
+```
+
+
+
+
+
+
 
 
 Sources (1)
