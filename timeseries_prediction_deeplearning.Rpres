@@ -1,5 +1,5 @@
 ```{r setup, include=FALSE}
-#opts_chunk$set(cache=TRUE)
+opts_chunk$set(cache=TRUE)
 opts_chunk$set(fig.align='left')
 ```
 
@@ -421,8 +421,8 @@ Trend-only dataset
 &nbsp;
 
 ```{r}
-trend_train <- 11:110 + rnorm(100, sd = 4)
-trend_test <- 111:130 + rnorm(20, sd =4)
+trend_train <- 11:110 + rnorm(100, sd = 2)
+trend_test <- 111:130 + rnorm(20, sd =2)
 df <- data_frame(time_id = 1:120,
                  train = c(trend_train, rep(NA, length(trend_test))),
                  test = c(rep(NA, length(trend_train)), trend_test))
@@ -441,8 +441,8 @@ fit <- auto.arima(trend_train)
 fit
 accuracy(fit)
 predictions <- forecast(fit, h = 20)
-accuracy(preds, trend_test)
-autoplot(preds)
+accuracy(predictions, trend_test)
+autoplot(predictions)
 df <- data_frame(time_id = 1:120,
                  train = c(trend_train, rep(NA, length(trend_test))),
                  test = c(rep(NA, length(trend_train)), trend_test),
@@ -518,6 +518,7 @@ X_test <- expand_dims(X_test, axis = 2)
 dim(X_test)
 ```
 
+
 Background: Keras - build the model
 ========================================================
 
@@ -581,8 +582,8 @@ What if we work with differenced data?
 
 
 ```{r}
-trend_train <- 11:110 + rnorm(100, sd = 4)
-trend_test <- 111:130 + rnorm(20, sd =4)
+trend_train <- 11:110 + rnorm(100, sd = 2)
+trend_test <- 111:130 + rnorm(20, sd =2)
 
 trend_train_start <- trend_train[1]
 trend_test_start <- trend_test[1]
@@ -590,6 +591,8 @@ trend_test_start <- trend_test[1]
 trend_train_diff <- diff(trend_train)
 trend_test_diff <- diff(trend_test)
 
+#!
+lstm_num_timesteps <- lstm_num_timesteps-1
 #diffinv(trend_train_diff, xi=trend_train_start)
 ```
 
@@ -606,7 +609,7 @@ model <- Sequential()
 model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
 model$add(Dense(1))
 keras_compile(model, loss='mean_squared_error', optimizer='adam')
-keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+keras_fit(model, X_train, y_train, batch_size = 1, epochs = 50, verbose = 1)
 
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
@@ -616,8 +619,8 @@ pred_test_undiff <- pred_test + trend_test[(lstm_num_timesteps+1):(length(trend_
 df <- data_frame(time_id = 1:120,
                  train = c(trend_train, rep(NA, length(trend_test))),
                  test = c(rep(NA, length(trend_train)), trend_test),
-                 pred_train = c(rep(NA, lstm_num_timesteps), pred_train_undiff, rep(NA, length(trend_test))),
-                 pred_test = c(rep(NA, length(trend_train)), rep(NA, lstm_num_timesteps), pred_test_undiff))
+                 pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(trend_test))),
+                 pred_test = c(rep(NA, length(trend_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
 df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
 ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
 
@@ -625,9 +628,7 @@ ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
 
 
 
-
-
-What if we had "diffed" the data?
+Just for completeness, let's try relative differences as well
 ========================================================
 
 &nbsp;
@@ -636,7 +637,6 @@ What if we had "diffed" the data?
 ```{r}
 trend_train <- 11:110 + rnorm(100, sd = 4)
 trend_test <- 111:130 + rnorm(20, sd =4)
-
 
 trend_train <- diff(trend_train)
 trend_test <- diff(trend_test)
