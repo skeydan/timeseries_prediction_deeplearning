@@ -1,3 +1,5 @@
+### diff
+
 lstm_num_timesteps <-3 
 (test <- c(1,3,5,7,9,11,13))
 
@@ -11,10 +13,10 @@ preds <- c(2.1,2.1,2.1)
 
 (pred_test_undiff <- preds + test[(lstm_num_timesteps+1):(length(test)-1)])
 
-# falsch!! ----- diffinv(preds, xi = test[(lstm_num_timesteps+1)])
+# NOT like this ----- diffinv(preds, xi = test[(lstm_num_timesteps+1)])
 
 
-#####
+### relative diff
 
 (test <- c(1,3,5,7,9,11,13))
 
@@ -27,5 +29,22 @@ preds <- c(2.1,2.1,2.1)
 
 preds <- c(0.2857143, 0.2222222, 0.1818182)
 (pred_test_rel_undiff <- preds * test[(lstm_num_timesteps+1):(length(test)-1)] + test[(lstm_num_timesteps+1):(length(test)-1)])
+
+
+### min max scale
+
+vec <- 1:10
+minval <- min(vec)
+maxval <- max(vec)
+
+normalize <- function(vec, min, max) {
+  (vec-min) / (max-min)
+}
+denormalize <- function(vec,min,max) {
+  vec * (max - min) + min
+}
+
+(n <- normalize(vec, minval, maxval))
+(orig <- denormalize(n, minval, maxval))
 
 
