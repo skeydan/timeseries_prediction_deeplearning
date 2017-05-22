@@ -60,6 +60,12 @@ ts3 <- autoplot(s3)
 acf3 <- ggfortify:::autoplot.acf(acf(s3, plot = FALSE), conf.int.fill = '#00cccc', conf.int.value = 0.95)
 do.call('grid.arrange', list('grobs' = list(ts3, acf3), 'ncol' = 2, top = "Series with seasonality"))
 
+
+########################################################################################################
+# Internet traffic part 1: ARIMA-like
+########################################################################################################
+
+
 #========================================================
 ggplot(traffic_df, aes(x = hour, y = bits)) + geom_line() + ggtitle("Internet traffic")
 
@@ -76,7 +82,7 @@ ggfortify:::autoplot.acf(acf(traffic_ts, plot = FALSE), conf.int.fill = '#00cccc
 
 # ========================================================
 traffic_df_wd <- traffic_df %>% mutate(weekend = if_else(wday(hour) %in% c(7,1), 1, 0))
-ggplot(traffic_df_wd, aes(x=hour, y=bits, color=weekend)) + geom_point()
+ggplot(traffic_df_wd, aes(x=hour, y=bits, color=factor(weekend))) + geom_point()
 #arima_fit <- auto.arima(ts(traffic_df_wd$bits, frequency = 24 * 7), xreg = traffic_df_wd$weekend, 
 #stepwise = FALSE, max.order = 10, trace = TRUE)
 
@@ -152,6 +158,7 @@ model$add(Dense(1))
 keras_compile(model, loss='mean_squared_error', optimizer='adam')
 
 keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+keras_save(model, 'trend_nodiff.h5')
 
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
@@ -200,6 +207,7 @@ model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
 model$add(Dense(1))
 keras_compile(model, loss='mean_squared_error', optimizer='adam')
 keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+keras_save(model, 'trend_diff.h5')
 
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
@@ -251,6 +259,7 @@ model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
 model$add(Dense(1))
 keras_compile(model, loss='mean_squared_error', optimizer='adam')
 keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+keras_save(model, 'trend_reldiff.h5')
 
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
@@ -315,6 +324,7 @@ model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
 model$add(Dense(1))
 keras_compile(model, loss='mean_squared_error', optimizer='adam')
 keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+keras_save(model, 'trend_diffnorm.h5')
 
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
@@ -403,6 +413,7 @@ model$add(Dense(1))
 keras_compile(model, loss='mean_squared_error', optimizer='adam')
 
 keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+keras_save(model, 'trend_i_nodiff.h5')
 
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
@@ -451,6 +462,7 @@ model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
 model$add(Dense(1))
 keras_compile(model, loss='mean_squared_error', optimizer='adam')
 keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+keras_save(model, 'trend_i_diff.h5')
 
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
@@ -502,6 +514,7 @@ model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
 model$add(Dense(1))
 keras_compile(model, loss='mean_squared_error', optimizer='adam')
 keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+keras_save(model, 'trend_i_reldiff.h5')
 
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
@@ -566,6 +579,7 @@ model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
 model$add(Dense(1))
 keras_compile(model, loss='mean_squared_error', optimizer='adam')
 keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+keras_save(model, 'trend_i_diffnorm.h5')
 
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
@@ -658,6 +672,7 @@ model$add(Dense(1))
 keras_compile(model, loss='mean_squared_error', optimizer='adam')
 
 keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+keras_save(model, 'seasonal_nodiff.h5')
 
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
@@ -706,6 +721,7 @@ model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
 model$add(Dense(1))
 keras_compile(model, loss='mean_squared_error', optimizer='adam')
 keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+keras_save(model, 'seasonal_diff.h5')
 
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
@@ -757,6 +773,7 @@ model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
 model$add(Dense(1))
 keras_compile(model, loss='mean_squared_error', optimizer='adam')
 keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+keras_save(model, 'seasonal_reldiff.h5')
 
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
@@ -821,6 +838,7 @@ model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
 model$add(Dense(1))
 keras_compile(model, loss='mean_squared_error', optimizer='adam')
 keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+keras_save(model, 'seasonal_diffnorm.h5')
 
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
@@ -843,3 +861,77 @@ test_rsme <- sqrt(sum((tail(seasonal_test,length(seasonal_test) - lstm_num_times
 test_rsme # 1.00
 
 
+########################################################################################################
+# Internet traffic part 2: LSTM
+########################################################################################################
+
+
+#========================================================
+ggplot(traffic_df, aes(x = hour, y = bits)) + geom_line() + ggtitle("Internet traffic")
+
+
+# ========================================================
+traffic_train <- traffic_df$bits[1:800]
+traffic_test <- traffic_df$bits[801:nrow(traffic_df)]
+
+traffic_train_start <- traffic_train[1]
+traffic_test_start <- traffic_test[1]
+
+traffic_train_diff <- diff(traffic_train)
+traffic_test_diff <- diff(traffic_test)
+
+minval <- min(traffic_train_diff)
+maxval <- max(traffic_train_diff)
+
+normalize <- function(vec, min, max) {
+  (vec-min) / (max-min)
+}
+denormalize <- function(vec,min,max) {
+  vec * (max - min) + min
+}
+
+traffic_train_diff <- normalize(traffic_train_diff, minval, maxval)
+traffic_test_diff <- normalize(traffic_test_diff, minval, maxval)
+
+#!!
+lstm_num_timesteps <- 7*24
+#diffinv(seasonal_train_diff, xi=seasonal_train_start)
+
+X_train <- t(sapply(1:(length(traffic_train_diff) - lstm_num_timesteps), function(x) traffic_train_diff[x:(x + lstm_num_timesteps - 1)]))
+y_train <- sapply((lstm_num_timesteps + 1):(length(traffic_train_diff)), function(x) traffic_train_diff[x])
+X_test <- t(sapply(1:(length(traffic_test_diff) - lstm_num_timesteps), function(x) traffic_test_diff[x:(x + lstm_num_timesteps - 1)]))
+y_test <- sapply((lstm_num_timesteps + 1):(length(traffic_test_diff)), function(x) traffic_test_diff[x])
+
+X_train <- expand_dims(X_train, axis = 2)
+X_test <- expand_dims(X_test, axis = 2)
+
+num_samples <- dim(X_train)[1]
+num_steps <- dim(X_train)[2]
+num_features <- dim(X_train)[3]
+
+model <- Sequential()
+model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
+model$add(Dense(1))
+keras_compile(model, loss='mean_squared_error', optimizer='adam')
+keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+keras_save(model, 'traffic_diffnorm.h5')
+
+pred_train <- keras_predict(model, X_train, batch_size = 1)
+pred_test <-keras_predict(model, X_test, batch_size = 1)
+
+pred_train <- denormalize(pred_train, minval, maxval)
+pred_test <- denormalize(pred_test, minval, maxval)
+
+pred_train_undiff <- pred_train + traffic_train[(lstm_num_timesteps+1):(length(traffic_train)-1)]
+pred_test_undiff <- pred_test + traffic_test[(lstm_num_timesteps+1):(length(traffic_test)-1)]
+
+df <- data_frame(time_id = 1:1231,
+                 train = c(traffic_train, rep(NA, length(traffic_test))),
+                 test = c(rep(NA, length(traffic_train)), traffic_test),
+                 pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(traffic_test))),
+                 pred_test = c(rep(NA, length(traffic_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
+df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
+ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
+
+test_rsme <- sqrt(sum((tail(traffic_test,length(traffic_test) - lstm_num_timesteps - 1) - pred_test_undiff)^2))
+test_rsme # 1.00
