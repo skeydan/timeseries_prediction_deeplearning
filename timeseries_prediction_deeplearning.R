@@ -43,6 +43,16 @@ ggplot(lynx_df, aes(x = year, y = number, color = species)) + geom_line() + scal
 
 
 # ========================================================
+set.seed(7777)
+trend <- 1:100 + rnorm(100, sd = 5)
+diff <- diff(trend)
+df <- data_frame(time_id = 1:100,
+                 trend = trend,
+                 diff = c(NA, diff))
+df <- df %>% gather(key = 'trend_diff', value = 'value', -time_id)
+ggplot(df, aes(x = time_id, y = value, color = trend_diff)) + geom_line()
+
+# ========================================================
 s1 <- ts(rnorm(100))
 ts1 <- autoplot(s1)
 acf1 <- ggfortify:::autoplot.acf(acf(s1, plot = FALSE), conf.int.fill = '#00cccc', conf.int.value = 0.95)
@@ -109,22 +119,38 @@ ggplot(df, aes(x = time_id, y = value, color = train_test)) + geom_line()
 
 # auto.arima on linear trend out-of-range dataset
 # ========================================================
-fit <- auto.arima(trend_train)
-fit
-predictions <- forecast(fit, h = 20)
-accuracy(predictions, trend_test) # 1.74 RMSE
-autoplot(predictions)
-df <- data_frame(time_id = 1:120,
-train = c(trend_train, rep(NA, length(trend_test))),
-test = c(rep(NA, length(trend_train)), trend_test),
-fitted = c(fit$fitted, rep(NA, length(trend_test))),
-preds = c(rep(NA, length(trend_train)), predictions$mean),
-lower = c(rep(NA, length(trend_train)), unclass(predictions$lower)[,2]),
-upper = c(rep(NA, length(trend_train)), unclass(predictions$upper)[,2]))
-df <- df %>% gather(key = 'type', value = 'value', train:preds)
-ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type)) + 
-geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)
 
+set.seed(7777)
+trend_train <- 11:110 + rnorm(100, sd = 2)
+trend_test <- 111:130 + rnorm(20, sd =2)
+h <- 1
+n <- length(trend_test) - h + 1
+fit <- auto.arima(trend_train)
+
+# re-estimate the model as new data arrives, as per https://robjhyndman.com/hyndsight/rolling-forecasts/ 
+order <- arimaorder(fit)
+predictions <- matrix(0, nrow=n, ncol=h)
+lower <- matrix(0, nrow=n, ncol=h) # 95% prediction interval
+upper <- matrix(0, nrow=n, ncol=h)
+for(i in 1:n) {  
+  x <- c(trend_train[(1+i):length(trend_train)], trend_test[1:i])
+  refit <- Arima(x, order=order[1:3], seasonal=order[4:6])
+  predictions[i,] <- forecast(refit, h=h)$mean
+  lower[i,] <- unclass(forecast(refit, h=h)$lower)[,2]
+  upper[i,] <- unclass(forecast(refit, h=h)$upper)[,2]
+}
+
+(test_rsme <- sqrt(sum((trend_test - predictions)^2))) 
+
+df <- data_frame(time_id = 1:120,
+                 train = c(trend_train, rep(NA, length(trend_test))),
+                 test = c(rep(NA, length(trend_train)), trend_test),
+                 fitted = c(fit$fitted, rep(NA, length(trend_test))),
+                 preds = c(rep(NA, length(trend_train)), predictions),
+                 lower = c(rep(NA, length(trend_train)), lower),
+                 upper = c(rep(NA, length(trend_train)), upper))
+df <- df %>% gather(key = 'type', value = 'value', train:preds)
+ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type)) + geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)
 
 # lstm on linear trend out-of-range dataset: NODIFF
 # ========================================================
@@ -366,16 +392,21 @@ ggplot(df, aes(x = time_id, y = value, color = train_test)) + geom_line()
 
 # auto.arima on linear trend in-range dataset
 #========================================================
+set.seed(7777)
+trend_train <- 11:110 + rnorm(100, sd = 2)
+trend_test <- 31:50 + rnorm(20, sd =2)
 fit <- auto.arima(trend_train)
-new_starting_values <- trend_test[1:5] 
-new_fit <- Arima(new_starting_values, model = fit)
-predictions <- simulate.Arima(new_fit, nsim = 20, future = T) 
-accuracy(predictions, trend_test) # 5.72
+order <- arimaorder(fit)
+# fit on the test set
+refit <- Arima(trend_test, order=order[1:3], seasonal=order[4:6])
+predictions <- refit$fitted
+(test_rsme <- sqrt(sum((trend_test - predictions)^2))) 
+
 df <- data_frame(time_id = 1:120,
-train = c(trend_train, rep(NA, length(trend_test))),
-test = c(rep(NA, length(trend_train)), trend_test),
-fitted = c(fit$fitted, rep(NA, length(trend_test))),
-preds = c(rep(NA, length(trend_train)), predictions))
+                 train = c(trend_train, rep(NA, length(trend_test))),
+                 test = c(rep(NA, length(trend_train)), trend_test),
+                 fitted = c(fit$fitted, rep(NA, length(trend_test))),
+                 preds = c(rep(NA, length(trend_train)), predictions))
 df <- df %>% gather(key = 'type', value = 'value', train:preds)
 ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type)) 
 
@@ -622,21 +653,24 @@ ggplot(df, aes(x = time_id, y = value, color = train_test)) + geom_line()
 
 # auto.arima on seasonal dataset
 # ========================================================
+set.seed(7777)
+seasonal_train <- rep(1:7, times = 13) + rnorm(91, sd=0.2)
+seasonal_test <- rep(1:7, times = 3) + rnorm(21, sd=0.2)
+h <- 1
+n <- length(seasonal_test) - h + 1
 fit <- auto.arima(seasonal_train)
-fit
-predictions <- forecast(fit, h = 21)
-accuracy(predictions, seasonal_test) # 1.04
-autoplot(predictions)
+order <- arimaorder(fit)
+refit <- Arima(seasonal_test, order=order[1:3], seasonal=order[4:6])
+predictions <- refit$fitted
+(test_rsme <- sqrt(sum((seasonal_test - predictions)^2))) 
+
 df <- data_frame(time_id = 1:112,
-  train = c(seasonal_train, rep(NA, length(seasonal_test))),
-  test = c(rep(NA, length(seasonal_train)), seasonal_test),
-  fitted = c(fit$fitted, rep(NA, length(seasonal_test))),
-  preds = c(rep(NA, length(seasonal_train)), predictions$mean),
-  lower = c(rep(NA, length(seasonal_train)), unclass(predictions$lower)[,2]),
-  upper = c(rep(NA, length(seasonal_train)), unclass(predictions$upper)[,2]))
+                 train = c(seasonal_train, rep(NA, length(seasonal_test))),
+                 test = c(rep(NA, length(seasonal_train)), seasonal_test),
+                 fitted = c(fit$fitted, rep(NA, length(seasonal_test))),
+                 preds = c(rep(NA, length(seasonal_train)), predictions))
 df <- df %>% gather(key = 'type', value = 'value', train:preds)
-ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type)) + 
-geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)
+ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type)) 
 
 
 # lstm on seasonal dataset: NODIFF
@@ -893,9 +927,7 @@ denormalize <- function(vec,min,max) {
 traffic_train_diff <- normalize(traffic_train_diff, minval, maxval)
 traffic_test_diff <- normalize(traffic_test_diff, minval, maxval)
 
-#!!
 lstm_num_timesteps <- 7*24
-#diffinv(seasonal_train_diff, xi=seasonal_train_start)
 
 X_train <- t(sapply(1:(length(traffic_train_diff) - lstm_num_timesteps), function(x) traffic_train_diff[x:(x + lstm_num_timesteps - 1)]))
 y_train <- sapply((lstm_num_timesteps + 1):(length(traffic_train_diff)), function(x) traffic_train_diff[x])
@@ -934,4 +966,4 @@ df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
 ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
 
 test_rsme <- sqrt(sum((tail(traffic_test,length(traffic_test) - lstm_num_timesteps - 1) - pred_test_undiff)^2))
-test_rsme # 1.00
+test_rsme 

@@ -20,7 +20,7 @@ opts_chunk$set(fig.align='left')
 }
 
 .reveal pre code {
-  font-size: 0.5em;
+  font-size: 0.8em;
 }
 
 .footer {
@@ -39,20 +39,10 @@ opts_chunk$set(fig.align='left')
 
 Time series forecasting - with deep learning
 ========================================================
-author: Sigrid Keydana
+author: Sigrid Keydana, Trivadis GmbH
 date: 2017-05-23
 autosize: true 
-
-
-
-Wait.
-========================================================
-
-&nbsp;
-
-- What's a time series?
-- What's deep learning?
-- How I can use deep learning for time series prediction?
+width: 1000
 
 
 ========================================================
@@ -63,7 +53,6 @@ type:prompt
 &nbsp; 
 
 <h1>Time series forecasting: the classical approach</h1>
-
 
 A time series 
 ========================================================
@@ -151,7 +140,7 @@ However ...
 </table>
 
 
-Lynx, in context
+Lynx and hare
 ========================================================
 
 
@@ -203,6 +192,23 @@ Stationarity (2)
 - By ergodicity, after we remove any trend and seasonality effects, we may assume that the residual series is stationary in the mean: $\mu(t)=t$
 
 
+Differencing
+========================================================
+
+- The trend is usually removed using differencing (forming the differences of neighboring values)
+
+```{r, fig.width=20,fig.height=10}
+set.seed(7777)
+trend <- 1:100 + rnorm(100, sd = 5)
+diff <- diff(trend)
+df <- data_frame(time_id = 1:100,
+                 trend = trend,
+                 diff = c(NA, diff))
+df <- df %>% gather(key = 'trend_diff', value = 'value', -time_id)
+ggplot(df, aes(x = time_id, y = value, color = trend_diff)) + geom_line()
+```
+
+
 Time series decomposition
 ========================================================
 
@@ -213,19 +219,11 @@ autoplot(stl(ts(cola_df$sales, frequency=12), s.window = 12))
 ```
 
 
-TBD: differencing / lograithm!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-========================================================
-
-&nbsp;
-
-
 
 Autocorrelation - Case 1: White noise
 ========================================================
 
-&nbsp;
-
-If consecutive values were not related, there'd be no way of forecasting
+If consecutive values were not related, there'd be no way of forecasting future values
 
 ```{r, fig.width=20,fig.height=10}
 s1 <- ts(rnorm(100))
@@ -270,7 +268,7 @@ type:prompt
 
 &nbsp; 
 
-<h1>Internet traffic forecasted, the classical way  </h1>
+<h1>Forecasting internet traffic, the classical way</h1>
 
 
 
@@ -326,8 +324,6 @@ Let's add an indicator variable for whether it's weekend.
 ```{r,  fig.width=20,fig.height=10}
 traffic_df_wd <- traffic_df %>% mutate(weekend = if_else(wday(hour) %in% c(7,1), 1, 0))
 ggplot(traffic_df_wd, aes(x=hour, y=bits, color=factor(weekend))) + geom_point()
-#arima_fit <- auto.arima(ts(traffic_df_wd$bits, frequency = 24 * 7), xreg = traffic_df_wd$weekend, 
-                        #stepwise = FALSE, max.order = 10, trace = TRUE)
 ```
 
 No.
@@ -365,37 +361,19 @@ Will deep learning do any better for this time series?
 
 - Let's step back a little though. 
 - How does deep learning even do time series?
-- What even is deep learning?
-
-========================================================
-type:prompt
-
-&nbsp; 
-
-&nbsp; 
-
-<h1>Deep Learning in a nutshell</h1>
 
 
+Enter: LSTM (Long Short Term Memory)
 ========================================================
 
 &nbsp;
 
-```{r}
-
-
-```
-
-
-========================================================
-type:prompt
-
-&nbsp; 
-
-&nbsp; 
-
-<h1>LSTM for time series: Brave new world?</h1>
-
+<table>
+<tr>
+<td><img src='lstm_olah.png' width='600px' /></td><td><img src='lstm2.png' width='600px'/></td>
+</tr>
+<tr><td class='src'>Source: <a href='http://colah.github.io/posts/2015-08-Understanding-LSTMs/'>Christopher Olah's post on LSTM</a></td></tr>
+</table>
 
 New world, new rules?
 ========================================================
@@ -449,10 +427,27 @@ Trend-only dataset: Enter: ARIMA (1)
 &nbsp;
 
 ```{r, fig.width=20,fig.height=10}
+set.seed(7777)
+trend_train <- 11:110 + rnorm(100, sd = 2)
+trend_test <- 111:130 + rnorm(20, sd =2)
+h <- 1
+n <- length(trend_test) - h + 1
 fit <- auto.arima(trend_train)
-fit
-predictions <- forecast(fit, h = 20)
-accuracy(predictions, trend_test)
+
+# re-estimate the model as new data arrives, as per https://robjhyndman.com/hyndsight/rolling-forecasts/ 
+order <- arimaorder(fit)
+predictions <- matrix(0, nrow=n, ncol=h)
+lower <- matrix(0, nrow=n, ncol=h) # 95% prediction interval
+upper <- matrix(0, nrow=n, ncol=h)
+for(i in 1:n) {  
+  x <- c(trend_train[(1+i):length(trend_train)], trend_test[1:i])
+  refit <- Arima(x, order=order[1:3], seasonal=order[4:6])
+  predictions[i,] <- forecast(refit, h=h)$mean
+  lower[i,] <- unclass(forecast(refit, h=h)$lower)[,2]
+  upper[i,] <- unclass(forecast(refit, h=h)$upper)[,2]
+}
+
+(test_rsme <- sqrt(sum((trend_test - predictions)^2))) 
 ```
 
 
@@ -462,26 +457,15 @@ Trend-only dataset: Enter: ARIMA (2)
 &nbsp;
 
 ```{r, fig.width=20,fig.height=10}
-autoplot(predictions)
-```
-
-
-Trend-only dataset: Enter: ARIMA (3)
-========================================================
-
-&nbsp;
-
-```{r, fig.width=20,fig.height=10}
 df <- data_frame(time_id = 1:120,
-                 train = c(trend_train, rep(NA, length(trend_test))),
-                 test = c(rep(NA, length(trend_train)), trend_test),
-                 fitted = c(fit$fitted, rep(NA, length(trend_test))),
-                 preds = c(rep(NA, length(trend_train)), predictions$mean),
-                 lower = c(rep(NA, length(trend_train)), unclass(predictions$lower)[,2]),
-                 upper = c(rep(NA, length(trend_train)), unclass(predictions$upper)[,2]))
+  train = c(trend_train, rep(NA, length(trend_test))),
+  test = c(rep(NA, length(trend_train)), trend_test),
+  fitted = c(fit$fitted, rep(NA, length(trend_test))),
+  preds = c(rep(NA, length(trend_train)), predictions),
+  lower = c(rep(NA, length(trend_train)), lower),
+  upper = c(rep(NA, length(trend_train)), upper))
 df <- df %>% gather(key = 'type', value = 'value', train:preds)
-ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type)) + 
-  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)
+ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type)) + geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.1)
 ```
 
 
@@ -498,8 +482,6 @@ Trend-only dataset: Enter: LSTM
 
 Background: Data preparation for LSTM in Keras (1)
 ========================================================
-
-&nbsp;
 
 Firstly, LSTMs work with a sliding window of input, so we need to provide the data (train and test) in "window form":
 
@@ -523,8 +505,6 @@ y_test <- sapply((lstm_num_timesteps + 1):(length(trend_test)), function(x) tren
 
 Background: Data preparation for LSTM in Keras (2)
 ========================================================
-
-&nbsp;
 
 Keras LSTMs expect the input array to be shaped as (no. samples, no. time steps, no. features)
 
@@ -567,6 +547,7 @@ Background: Keras - fit the model!
 &nbsp;
 
 ```{r}
+# not executed "live" ;-)
 # keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
 ```
 
@@ -578,6 +559,7 @@ We'll load the fitted model instead, and get the predictions.
 ```{r}
 # we'll load the fitted model instead...
 # keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+
 model <- keras_load('trend_nodiff.h5')
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
@@ -588,14 +570,13 @@ pred_test <-keras_predict(model, X_test, batch_size = 1)
 Hm. Whatever happened to predicting the test data?
 ========================================================
 
-&nbsp;
 
 ```{r, fig.width=20,fig.height=10}
 df <- data_frame(time_id = 1:120,
-                 train = c(trend_train, rep(NA, length(trend_test))),
-                 test = c(rep(NA, length(trend_train)), trend_test),
-                 pred_train = c(rep(NA, lstm_num_timesteps), pred_train, rep(NA, length(trend_test))),
-                 pred_test = c(rep(NA, length(trend_train)), rep(NA, lstm_num_timesteps), pred_test))
+  train = c(trend_train, rep(NA, length(trend_test))),
+  test = c(rep(NA, length(trend_train)), trend_test),
+  pred_train = c(rep(NA, lstm_num_timesteps), pred_train, rep(NA, length(trend_test))),
+  pred_test = c(rep(NA, length(trend_train)), rep(NA, lstm_num_timesteps), pred_test))
 df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
 ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
 ```
@@ -670,21 +651,19 @@ pred_test_undiff <- pred_test + trend_test[(lstm_num_timesteps+1):(length(trend_
 ```
 
 
-Diff makes the difference...
+Differencing makes the difference...
 ========================================================
 
 
-&nbsp;
 
 ```{r, fig.width=20,fig.height=10}
 df <- data_frame(time_id = 1:120,
-                 train = c(trend_train, rep(NA, length(trend_test))),
-                 test = c(rep(NA, length(trend_train)), trend_test),
-                 pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(trend_test))),
-                 pred_test = c(rep(NA, length(trend_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
+   train = c(trend_train, rep(NA, length(trend_test))),
+   test = c(rep(NA, length(trend_train)), trend_test),
+   pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(trend_test))),
+   pred_test = c(rep(NA, length(trend_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
 df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
-test_rsme <- sqrt(sum((tail(trend_test,length(trend_test) - lstm_num_timesteps - 1) - pred_test_undiff)^2))
-test_rsme 
+(test_rsme <- sqrt(sum((tail(trend_test,length(trend_test) - lstm_num_timesteps - 1) - pred_test_undiff)^2))) 
 ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
 ```
 
@@ -744,25 +723,22 @@ pred_test_undiff <- pred_test * trend_test[(lstm_num_timesteps+1):(length(trend_
 ```
 
 
-TBD
+Relative differences: results
 ========================================================
 
 ```{r, fig.width=20,fig.height=10}
 df <- data_frame(time_id = 1:120,
-                 train = c(trend_train, rep(NA, length(trend_test))),
-                 test = c(rep(NA, length(trend_train)), trend_test),
-                 pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(trend_test))),
-                 pred_test = c(rep(NA, length(trend_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
+    train = c(trend_train, rep(NA, length(trend_test))),
+    test = c(rep(NA, length(trend_train)), trend_test),
+    pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(trend_test))),
+    pred_test = c(rep(NA, length(trend_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
 df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
-
-test_rsme <- sqrt(sum((tail(trend_test,length(trend_test) - lstm_num_timesteps - 1) - pred_test_undiff)^2))
-test_rsme
-
+(test_rsme <- sqrt(sum((tail(trend_test,length(trend_test) - lstm_num_timesteps - 1) - pred_test_undiff)^2)))
 ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
 ```
 
 
-What if we diff AND normalize?
+What if we difference AND normalize?
 ========================================================
 
 &nbsp;
@@ -835,19 +811,17 @@ pred_test_undiff <- pred_test + trend_test[(lstm_num_timesteps+1):(length(trend_
 ```
 
 
-TBD
+Difference and normalize: results
 ========================================================
 
 ```{r, fig.width=20,fig.height=10}
 df <- data_frame(time_id = 1:120,
-                 train = c(trend_train, rep(NA, length(trend_test))),
-                 test = c(rep(NA, length(trend_train)), trend_test),
-                 pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(trend_test))),
-                 pred_test = c(rep(NA, length(trend_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
+    train = c(trend_train, rep(NA, length(trend_test))),
+    test = c(rep(NA, length(trend_train)), trend_test),
+    pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(trend_test))),
+    pred_test = c(rep(NA, length(trend_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
 df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
-test_rsme <- sqrt(sum((tail(trend_test,length(trend_test) - lstm_num_timesteps - 1) - pred_test_undiff)^2))
-test_rsme # 6.84
-
+(test_rsme <- sqrt(sum((tail(trend_test,length(trend_test) - lstm_num_timesteps - 1) - pred_test_undiff)^2)))
 ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
 ```
 
@@ -868,8 +842,6 @@ type:prompt
 Would anything change if the test data were in the range already known by the model?
 ========================================================
 
-&nbsp;
-
 
 ```{r,fig.width=20,fig.height=10}
 set.seed(7777)
@@ -884,30 +856,42 @@ ggplot(df, aes(x = time_id, y = value, color = train_test)) + geom_line()
 ```
 
 
-Trend-only dataset, test data in-range: Enter: ARIMA
+Trend-only dataset, test data in-range: Enter: ARIMA (1)
 ========================================================
 
 &nbsp;
 
-```{r}
+```{r, fig.width=20,fig.height=10}
+set.seed(7777)
+trend_train <- 11:110 + rnorm(100, sd = 2)
+trend_test <- 31:50 + rnorm(20, sd =2)
 fit <- auto.arima(trend_train)
-new_starting_values <- trend_test[1:5] 
-new_fit <- Arima(new_starting_values, model = fit)
-predictions <- simulate.Arima(new_fit, nsim = 20, future = T) 
+order <- arimaorder(fit)
+# fit on the test set
+refit <- Arima(trend_test, order=order[1:3], seasonal=order[4:6])
+predictions <- refit$fitted
+(test_rsme <- sqrt(sum((trend_test - predictions)^2))) 
+```
+
+
+Trend-only dataset, test data in-range: Enter: ARIMA (2)
+========================================================
+
+&nbsp;
+
+```{r, fig.width=20,fig.height=10}
 df <- data_frame(time_id = 1:120,
-                 train = c(trend_train, rep(NA, length(trend_test))),
-                 test = c(rep(NA, length(trend_train)), trend_test),
-                 fitted = c(fit$fitted, rep(NA, length(trend_test))),
-                 preds = c(rep(NA, length(trend_train)), predictions))
+  train = c(trend_train, rep(NA, length(trend_test))),
+  test = c(rep(NA, length(trend_train)), trend_test),
+  fitted = c(fit$fitted, rep(NA, length(trend_test))),
+  preds = c(rep(NA, length(trend_train)), predictions))
 df <- df %>% gather(key = 'type', value = 'value', train:preds)
 ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type)) 
 ```
 
 
-Trend-only dataset, test data in-range: Enter: LSTM (no diffing)
+Trend-only dataset, test data in-range: Enter: LSTM (no differencing)
 ========================================================
-
-&nbsp;
 
 
 ```{r, echo=FALSE}
@@ -939,30 +923,204 @@ model <- keras_load('trend_i_nodiff.h5')
 
 pred_train <- keras_predict(model, X_train, batch_size = 1)
 pred_test <-keras_predict(model, X_test, batch_size = 1)
-```
 
-```{r,fig.width=20,fig.height=10}
 df <- data_frame(time_id = 1:120,
                  train = c(trend_train, rep(NA, length(trend_test))),
                  test = c(rep(NA, length(trend_train)), trend_test),
                  pred_train = c(rep(NA, lstm_num_timesteps), pred_train, rep(NA, length(trend_test))),
                  pred_test = c(rep(NA, length(trend_train)), rep(NA, lstm_num_timesteps), pred_test))
 df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
-test_rsme <- sqrt(sum((tail(trend_test,length(trend_test) - lstm_num_timesteps) - pred_test)^2))
-test_rsme 
+```
+
+```{r,fig.width=20,fig.height=10}
+(test_rsme <- sqrt(sum((tail(trend_test,length(trend_test) - lstm_num_timesteps) - pred_test)^2)))
 ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
 ```
 
 
 
-Does it get even better with diffing?
+Does it get even better with differencing?
 ========================================================
-
-&nbsp;
 
 
 ```{r, echo=FALSE}
+set.seed(7777)
+trend_train <- 11:110 + rnorm(100, sd = 2)
+trend_test <- 31:50 + rnorm(20, sd =2)
 
+trend_train_start <- trend_train[1]
+trend_test_start <- trend_test[1]
+
+trend_train_diff <- diff(trend_train)
+trend_test_diff <- diff(trend_test)
+
+lstm_num_timesteps <- 4
+
+X_train <- t(sapply(1:(length(trend_train_diff) - lstm_num_timesteps), function(x) trend_train_diff[x:(x + lstm_num_timesteps - 1)]))
+y_train <- sapply((lstm_num_timesteps + 1):(length(trend_train_diff)), function(x) trend_train_diff[x])
+X_test <- t(sapply(1:(length(trend_test_diff) - lstm_num_timesteps), function(x) trend_test_diff[x:(x + lstm_num_timesteps - 1)]))
+y_test <- sapply((lstm_num_timesteps + 1):(length(trend_test_diff)), function(x) trend_test_diff[x])
+
+X_train <- expand_dims(X_train, axis = 2)
+X_test <- expand_dims(X_test, axis = 2)
+
+num_samples <- dim(X_train)[1]
+num_steps <- dim(X_train)[2]
+num_features <- dim(X_train)[3]
+
+model <- Sequential()
+model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
+model$add(Dense(1))
+keras_compile(model, loss='mean_squared_error', optimizer='adam')
+#keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+model <- keras_load('trend_i_diff.h5')
+
+pred_train <- keras_predict(model, X_train, batch_size = 1)
+pred_test <-keras_predict(model, X_test, batch_size = 1)
+pred_train_undiff <- pred_train + trend_train[(lstm_num_timesteps+1):(length(trend_train)-1)]
+pred_test_undiff <- pred_test + trend_test[(lstm_num_timesteps+1):(length(trend_test)-1)]
+
+df <- data_frame(time_id = 1:120,
+                 train = c(trend_train, rep(NA, length(trend_test))),
+                 test = c(rep(NA, length(trend_train)), trend_test),
+                 pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(trend_test))),
+                 pred_test = c(rep(NA, length(trend_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
+df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
+```
+
+```{r,fig.width=20,fig.height=10}
+(test_rsme <- sqrt(sum((tail(trend_test,length(trend_test) - lstm_num_timesteps - 1) - pred_test_undiff)^2)))
+ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
+```
+
+
+
+And with relative differencing?
+========================================================
+
+
+```{r, echo=FALSE}
+set.seed(7777)
+trend_train <- 11:110 + rnorm(100, sd = 2)
+trend_test <- 31:50 + rnorm(20, sd =2)
+
+trend_train_start <- trend_train[1]
+trend_test_start <- trend_test[1]
+
+trend_train_diff <- diff(trend_train)/trend_train[-length(trend_train)]
+trend_test_diff <- diff(trend_test)/trend_test[-length(trend_test)]
+
+#!!
+lstm_num_timesteps <- 4
+#diffinv(trend_train_diff, xi=trend_train_start)
+
+X_train <- t(sapply(1:(length(trend_train_diff) - lstm_num_timesteps), function(x) trend_train_diff[x:(x + lstm_num_timesteps - 1)]))
+y_train <- sapply((lstm_num_timesteps + 1):(length(trend_train_diff)), function(x) trend_train_diff[x])
+X_test <- t(sapply(1:(length(trend_test_diff) - lstm_num_timesteps), function(x) trend_test_diff[x:(x + lstm_num_timesteps - 1)]))
+y_test <- sapply((lstm_num_timesteps + 1):(length(trend_test_diff)), function(x) trend_test_diff[x])
+
+X_train <- expand_dims(X_train, axis = 2)
+X_test <- expand_dims(X_test, axis = 2)
+
+num_samples <- dim(X_train)[1]
+num_steps <- dim(X_train)[2]
+num_features <- dim(X_train)[3]
+
+model <- Sequential()
+model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
+model$add(Dense(1))
+keras_compile(model, loss='mean_squared_error', optimizer='adam')
+#keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+model <- keras_load('trend_i_reldiff.h5')
+
+pred_train <- keras_predict(model, X_train, batch_size = 1)
+pred_test <-keras_predict(model, X_test, batch_size = 1)
+pred_train_undiff <- pred_train * trend_train[(lstm_num_timesteps+1):(length(trend_train)-1)] + trend_train[(lstm_num_timesteps+1):(length(trend_train)-1)]
+pred_test_undiff <- pred_test * trend_test[(lstm_num_timesteps+1):(length(trend_test)-1)] + trend_test[(lstm_num_timesteps+1):(length(trend_test)-1)]
+
+df <- data_frame(time_id = 1:120,
+                 train = c(trend_train, rep(NA, length(trend_test))),
+                 test = c(rep(NA, length(trend_train)), trend_test),
+                 pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(trend_test))),
+                 pred_test = c(rep(NA, length(trend_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
+df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
+```
+
+```{r,fig.width=20,fig.height=10}
+(test_rsme <- sqrt(sum((tail(trend_test,length(trend_test) - lstm_num_timesteps - 1) - pred_test_undiff)^2)))
+ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
+```
+
+
+
+Finally, what about both differencing and normalizing?
+========================================================
+
+```{r, echo=FALSE}
+set.seed(7777)
+trend_train <- 11:110 + rnorm(100, sd = 2)
+trend_test <- 31:50 + rnorm(20, sd =2)
+
+trend_train_start <- trend_train[1]
+trend_test_start <- trend_test[1]
+
+trend_train_diff <- diff(trend_train)
+trend_test_diff <- diff(trend_test)
+
+minval <- min(trend_train_diff)
+maxval <- max(trend_train_diff)
+
+normalize <- function(vec, min, max) {
+  (vec-min) / (max-min)
+}
+denormalize <- function(vec,min,max) {
+  vec * (max - min) + min
+}
+
+trend_train_diff <- normalize(trend_train_diff, minval, maxval)
+trend_test_diff <- normalize(trend_test_diff, minval, maxval)
+
+lstm_num_timesteps <- 4
+
+X_train <- t(sapply(1:(length(trend_train_diff) - lstm_num_timesteps), function(x) trend_train_diff[x:(x + lstm_num_timesteps - 1)]))
+y_train <- sapply((lstm_num_timesteps + 1):(length(trend_train_diff)), function(x) trend_train_diff[x])
+X_test <- t(sapply(1:(length(trend_test_diff) - lstm_num_timesteps), function(x) trend_test_diff[x:(x + lstm_num_timesteps - 1)]))
+y_test <- sapply((lstm_num_timesteps + 1):(length(trend_test_diff)), function(x) trend_test_diff[x])
+
+X_train <- expand_dims(X_train, axis = 2)
+X_test <- expand_dims(X_test, axis = 2)
+
+num_samples <- dim(X_train)[1]
+num_steps <- dim(X_train)[2]
+num_features <- dim(X_train)[3]
+
+model <- Sequential()
+model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
+model$add(Dense(1))
+keras_compile(model, loss='mean_squared_error', optimizer='adam')
+#keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+model <- keras_load('trend_i_diffnorm.h5')
+
+pred_train <- keras_predict(model, X_train, batch_size = 1)
+pred_test <-keras_predict(model, X_test, batch_size = 1)
+
+pred_train <- denormalize(pred_train, minval, maxval)
+pred_test <- denormalize(pred_test, minval, maxval)
+
+pred_train_undiff <- pred_train + trend_train[(lstm_num_timesteps+1):(length(trend_train)-1)]
+pred_test_undiff <- pred_test + trend_test[(lstm_num_timesteps+1):(length(trend_test)-1)]
+
+df <- data_frame(time_id = 1:120,
+                 train = c(trend_train, rep(NA, length(trend_test))),
+                 test = c(rep(NA, length(trend_train)), trend_test),
+                 pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(trend_test))),
+                 pred_test = c(rep(NA, length(trend_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
+df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
+```
+
+```{r,fig.width=20,fig.height=10}
+(test_rsme <- sqrt(sum((tail(trend_test,length(trend_test) - lstm_num_timesteps - 1) - pred_test_undiff)^2)))
+ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
 ```
 
 
@@ -975,7 +1133,7 @@ type:prompt
 
 &nbsp; 
 
-<h1>ARIMA vs. LSTM, Round 2: seasonal-only dataset (1)</h1>
+<h1>ARIMA vs. LSTM, Round 3: seasonal-only dataset</h1>
 
 
 Seasonal-only dataset 
@@ -983,13 +1141,469 @@ Seasonal-only dataset
 
 &nbsp;
 
-```{r}
-seasonal_train <- rep(1:7, times = 13) + rnorm(91)
-seasonal_test <- rep(1:7, times = 3) + rnorm(21)
-df <- data_frame(time_id = 1:113,
-                 train = c(trend_train, rep(NA, length(trend_test))),
-                 test = c(rep(NA, length(trend_train)), trend_test))
+```{r,fig.width=20,fig.height=10}
+set.seed(7777)
+seasonal_train <- rep(1:7, times = 13) + rnorm(91, sd=0.2)
+seasonal_test <- rep(1:7, times = 3) + rnorm(21, sd=0.2)
+df <- data_frame(time_id = 1:112,
+train = c(seasonal_train, rep(NA, length(seasonal_test))),
+test = c(rep(NA, length(seasonal_train)), seasonal_test))
 df <- df %>% gather(key = 'train_test', value = 'value', -time_id)
 ggplot(df, aes(x = time_id, y = value, color = train_test)) + geom_line()
 ```
 
+Seasonal-only dataset: Enter: ARIMA (1)
+========================================================
+
+&nbsp;
+
+```{r, fig.width=20,fig.height=10, error=TRUE}
+set.seed(7777)
+seasonal_train <- rep(1:7, times = 13) + rnorm(91, sd=0.2)
+seasonal_test <- rep(1:7, times = 3) + rnorm(21, sd=0.2)
+h <- 1
+n <- length(seasonal_test) - h + 1
+fit <- auto.arima(seasonal_train)
+order <- arimaorder(fit)
+refit <- Arima(seasonal_test, order=order[1:3], seasonal=order[4:6])
+predictions <- refit$fitted
+(test_rsme <- sqrt(sum((seasonal_test - predictions)^2))) 
+```
+
+
+
+Seasonal-only dataset: enter: ARIMA (2)
+========================================================
+
+```{r,fig.width=20,fig.height=10}
+df <- data_frame(time_id = 1:112,
+  train = c(seasonal_train, rep(NA, length(seasonal_test))),
+  test = c(rep(NA, length(seasonal_train)), seasonal_test),
+  fitted = c(fit$fitted, rep(NA, length(seasonal_test))),
+  preds = c(rep(NA, length(seasonal_train)), predictions))
+df <- df %>% gather(key = 'type', value = 'value', train:preds)
+ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type)) 
+```
+
+
+Seasonal-only dataset: Enter: LSTM (no differencing)
+========================================================
+
+
+```{r, echo=FALSE}
+set.seed(7777)
+seasonal_train <- rep(1:7, times = 13) + rnorm(91, sd=0.2)
+seasonal_test <- rep(1:7, times = 3) + rnorm(21, sd=0.2)
+
+lstm_num_timesteps <- 7
+
+X_train <- t(sapply(1:(length(seasonal_train) - lstm_num_timesteps), function(x) seasonal_train[x:(x + lstm_num_timesteps - 1)]))
+y_train <- sapply((lstm_num_timesteps + 1):(length(seasonal_train)), function(x) seasonal_train[x])
+X_test <- t(sapply(1:(length(seasonal_test) - lstm_num_timesteps), function(x) seasonal_test[x:(x + lstm_num_timesteps - 1)]))
+y_test <- sapply((lstm_num_timesteps + 1):(length(seasonal_test)), function(x) trend_test[x])
+# add 3rd dimension
+X_train <- expand_dims(X_train, axis = 2)
+X_test <- expand_dims(X_test, axis = 2)
+# LSTM input shape: (samples, time steps, features)
+num_samples <- dim(X_train)[1]
+num_steps <- dim(X_train)[2]
+num_features <- dim(X_train)[3]
+
+model <- Sequential()
+model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
+model$add(Dense(1))
+keras_compile(model, loss='mean_squared_error', optimizer='adam')
+#keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+model <- keras_load('seasonal_nodiff.h5')
+
+pred_train <- keras_predict(model, X_train, batch_size = 1)
+pred_test <-keras_predict(model, X_test, batch_size = 1)
+df <- data_frame(time_id = 1:112,
+                 train = c(seasonal_train, rep(NA, length(seasonal_test))),
+                 test = c(rep(NA, length(seasonal_train)), seasonal_test),
+                 pred_train = c(rep(NA, lstm_num_timesteps), pred_train, rep(NA, length(seasonal_test))),
+                 pred_test = c(rep(NA, length(seasonal_train)), rep(NA, lstm_num_timesteps), pred_test))
+df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
+```
+
+```{r,fig.width=20,fig.height=10}
+(test_rsme <- sqrt(sum((tail(seasonal_test,length(seasonal_test) - lstm_num_timesteps) - pred_test)^2)))
+ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
+```
+
+
+
+Does it get even better with differencing? (How could it ;-))
+========================================================
+
+```{r, echo=FALSE}
+set.seed(7777)
+seasonal_train <- rep(1:7, times = 13) + rnorm(91, sd=0.2)
+seasonal_test <- rep(1:7, times = 3) + rnorm(21, sd=0.2)
+
+seasonal_train_start <- seasonal_train[1]
+seasonal_test_start <- seasonal_test[1]
+
+seasonal_train_diff <- diff(seasonal_train)
+seasonal_test_diff <- diff(seasonal_test)
+
+lstm_num_timesteps <- 7
+
+X_train <- t(sapply(1:(length(seasonal_train_diff) - lstm_num_timesteps), function(x) seasonal_train_diff[x:(x + lstm_num_timesteps - 1)]))
+y_train <- sapply((lstm_num_timesteps + 1):(length(seasonal_train_diff)), function(x) seasonal_train_diff[x])
+X_test <- t(sapply(1:(length(seasonal_test_diff) - lstm_num_timesteps), function(x) seasonal_test_diff[x:(x + lstm_num_timesteps - 1)]))
+y_test <- sapply((lstm_num_timesteps + 1):(length(seasonal_test_diff)), function(x) seasonal_test_diff[x])
+
+X_train <- expand_dims(X_train, axis = 2)
+X_test <- expand_dims(X_test, axis = 2)
+
+num_samples <- dim(X_train)[1]
+num_steps <- dim(X_train)[2]
+num_features <- dim(X_train)[3]
+
+model <- Sequential()
+model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
+model$add(Dense(1))
+keras_compile(model, loss='mean_squared_error', optimizer='adam')
+#keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+model <- keras_load('seasonal_diff.h5')
+
+pred_train <- keras_predict(model, X_train, batch_size = 1)
+pred_test <-keras_predict(model, X_test, batch_size = 1)
+pred_train_undiff <- pred_train + seasonal_train[(lstm_num_timesteps+1):(length(seasonal_train)-1)]
+pred_test_undiff <- pred_test + seasonal_test[(lstm_num_timesteps+1):(length(seasonal_test)-1)]
+
+df <- data_frame(time_id = 1:112,
+                 train = c(seasonal_train, rep(NA, length(seasonal_test))),
+                 test = c(rep(NA, length(seasonal_train)), seasonal_test),
+                 pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(seasonal_test))),
+                 pred_test = c(rep(NA, length(seasonal_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
+df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
+```
+
+```{r,fig.width=20,fig.height=10}
+(test_rsme <- sqrt(sum((tail(seasonal_test,length(seasonal_test) - lstm_num_timesteps - 1) - pred_test_undiff)^2))) 
+ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
+```
+
+
+
+Or with relative differencing (for completeness' sake)?
+========================================================
+
+
+```{r, echo=FALSE}
+set.seed(7777)
+seasonal_train <- rep(1:7, times = 13) + rnorm(91, sd=0.2)
+seasonal_test <- rep(1:7, times = 3) + rnorm(21, sd=0.2)
+
+seasonal_train_start <- seasonal_train[1]
+seasonal_test_start <- seasonal_test[1]
+
+seasonal_train_diff <- diff(seasonal_train)/seasonal_train[-length(seasonal_train)]
+seasonal_test_diff <- diff(seasonal_test)/seasonal_test[-length(seasonal_test)]
+
+lstm_num_timesteps <- 7
+
+X_train <- t(sapply(1:(length(seasonal_train_diff) - lstm_num_timesteps), function(x) seasonal_train_diff[x:(x + lstm_num_timesteps - 1)]))
+y_train <- sapply((lstm_num_timesteps + 1):(length(seasonal_train_diff)), function(x) seasonal_train_diff[x])
+X_test <- t(sapply(1:(length(seasonal_test_diff) - lstm_num_timesteps), function(x) seasonal_test_diff[x:(x + lstm_num_timesteps - 1)]))
+y_test <- sapply((lstm_num_timesteps + 1):(length(seasonal_test_diff)), function(x) seasonal_test_diff[x])
+
+X_train <- expand_dims(X_train, axis = 2)
+X_test <- expand_dims(X_test, axis = 2)
+
+num_samples <- dim(X_train)[1]
+num_steps <- dim(X_train)[2]
+num_features <- dim(X_train)[3]
+
+model <- Sequential()
+model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
+model$add(Dense(1))
+keras_compile(model, loss='mean_squared_error', optimizer='adam')
+#keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+model <- keras_load('seasonal_reldiff.h5')
+
+pred_train <- keras_predict(model, X_train, batch_size = 1)
+pred_test <-keras_predict(model, X_test, batch_size = 1)
+pred_train_undiff <- pred_train * seasonal_train[(lstm_num_timesteps+1):(length(seasonal_train)-1)] + seasonal_train[(lstm_num_timesteps+1):(length(seasonal_train)-1)]
+pred_test_undiff <- pred_test * seasonal_test[(lstm_num_timesteps+1):(length(seasonal_test)-1)] + seasonal_test[(lstm_num_timesteps+1):(length(seasonal_test)-1)]
+
+df <- data_frame(time_id = 1:112,
+                 train = c(seasonal_train, rep(NA, length(seasonal_test))),
+                 test = c(rep(NA, length(seasonal_train)), seasonal_test),
+                 pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(seasonal_test))),
+                 pred_test = c(rep(NA, length(seasonal_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
+df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
+```
+
+```{r,fig.width=20,fig.height=10}
+(test_rsme <- sqrt(sum((tail(seasonal_test,length(seasonal_test) - lstm_num_timesteps - 1) - pred_test_undiff)^2))) 
+ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
+```
+
+
+
+Finally, what about both differencing and normalizing
+========================================================
+
+
+```{r, echo=FALSE}
+set.seed(7777)
+seasonal_train <- rep(1:7, times = 13) + rnorm(91, sd=0.2)
+seasonal_test <- rep(1:7, times = 3) + rnorm(21, sd=0.2)
+
+seasonal_train_start <- seasonal_train[1]
+seasonal_test_start <- seasonal_test[1]
+
+seasonal_train_diff <- diff(seasonal_train)
+seasonal_test_diff <- diff(seasonal_test)
+
+minval <- min(seasonal_train_diff)
+maxval <- max(seasonal_train_diff)
+
+normalize <- function(vec, min, max) {
+  (vec-min) / (max-min)
+}
+denormalize <- function(vec,min,max) {
+  vec * (max - min) + min
+}
+
+seasonal_train_diff <- normalize(seasonal_train_diff, minval, maxval)
+seasonal_test_diff <- normalize(seasonal_test_diff, minval, maxval)
+
+lstm_num_timesteps <- 7
+
+X_train <- t(sapply(1:(length(seasonal_train_diff) - lstm_num_timesteps), function(x) seasonal_train_diff[x:(x + lstm_num_timesteps - 1)]))
+y_train <- sapply((lstm_num_timesteps + 1):(length(seasonal_train_diff)), function(x) seasonal_train_diff[x])
+X_test <- t(sapply(1:(length(seasonal_test_diff) - lstm_num_timesteps), function(x) seasonal_test_diff[x:(x + lstm_num_timesteps - 1)]))
+y_test <- sapply((lstm_num_timesteps + 1):(length(seasonal_test_diff)), function(x) seasonal_test_diff[x])
+
+X_train <- expand_dims(X_train, axis = 2)
+X_test <- expand_dims(X_test, axis = 2)
+
+num_samples <- dim(X_train)[1]
+num_steps <- dim(X_train)[2]
+num_features <- dim(X_train)[3]
+
+model <- Sequential()
+model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
+model$add(Dense(1))
+keras_compile(model, loss='mean_squared_error', optimizer='adam')
+#keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+model <- keras_load('seasonal_diffnorm.h5')
+
+pred_train <- keras_predict(model, X_train, batch_size = 1)
+pred_test <-keras_predict(model, X_test, batch_size = 1)
+
+pred_train <- denormalize(pred_train, minval, maxval)
+pred_test <- denormalize(pred_test, minval, maxval)
+
+pred_train_undiff <- pred_train + seasonal_train[(lstm_num_timesteps+1):(length(seasonal_train)-1)]
+pred_test_undiff <- pred_test + seasonal_test[(lstm_num_timesteps+1):(length(seasonal_test)-1)]
+
+df <- data_frame(time_id = 1:112,
+                 train = c(seasonal_train, rep(NA, length(seasonal_test))),
+                 test = c(rep(NA, length(seasonal_train)), seasonal_test),
+                 pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(seasonal_test))),
+                 pred_test = c(rep(NA, length(seasonal_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
+df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
+```
+
+```{r,fig.width=20,fig.height=10}
+(test_rsme <- sqrt(sum((tail(seasonal_test,length(seasonal_test) - lstm_num_timesteps - 1) - pred_test_undiff)^2)))
+ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
+```
+
+
+Benchmark: Remarks and conclusions
+========================================================
+
+&nbsp;
+
+- We've used a very basic setup for the LSTM
+    - just one layer
+    - no experiments with number of units, optimization routines, activation functions...
+    - no use of dropout, regularization, weight decay...
+    - not making use of Keras _stateful_ LSTM
+    
+- We've only compared both methods on a rolling forecast (not forecasting several periods into the future)
+
+
+
+Aside (1): Stateful RNNs in Keras 
+========================================================
+
+&nbsp;
+
+
+- With stateful RNNs, states computed for the samples in one batch will be reused as initial states for the _respective_ samples in the next batch
+- "Makes sense" for a time series, as long as the data is reformatted or batch_size=1 is used
+- Presupposes batches arriving in the same order in every epoch (set shuffle = False)
+- Not currently implemented in KerasR - time for some Python...
+
+
+
+
+========================================================
+type:prompt
+
+&nbsp; 
+
+&nbsp; 
+
+<h1>Demo: Stateful LSTM in Keras</h1>
+
+
+
+Aside (2): Multi-step-ahead forecasts in Keras 
+========================================================
+
+&nbsp;
+
+
+- Multi-step-ahead forecasts using LSTM can be done in a number of ways:
+    - build predictions on earlier predictions ("low end")
+    - seq2seq architecture ("high end", not currently available out of the box in Keras)
+    - using TimeDistributed layer (not currently implemented in KerasR)
+
+
+
+========================================================
+type:prompt
+
+&nbsp; 
+
+&nbsp; 
+
+<h1>Demo: Multi-step ahead forecasting in Keras using TimeDistributed</h1>
+
+
+Finally...
+========================================================
+
+
+========================================================
+type:prompt
+
+&nbsp; 
+
+&nbsp; 
+
+<h1>Forecasting internet traffic using LSTM</h1>
+
+
+
+Here, again, is our time series...
+========================================================
+
+&nbsp;
+
+```{r,fig.width=20,fig.height=10}
+ggplot(traffic_df, aes(x = hour, y = bits)) + geom_line() + ggtitle("Internet traffic")
+
+```
+
+
+
+Forecasting internet traffic with LSTM
+========================================================
+
+
+We apply first-order differencing and normalize the data.
+
+```{r}
+traffic_train <- traffic_df$bits[1:800]
+traffic_test <- traffic_df$bits[801:nrow(traffic_df)]
+
+traffic_train_start <- traffic_train[1]
+traffic_test_start <- traffic_test[1]
+
+traffic_train_diff <- diff(traffic_train)
+traffic_test_diff <- diff(traffic_test)
+
+minval <- min(traffic_train_diff)
+maxval <- max(traffic_train_diff)
+
+normalize <- function(vec, min, max) {
+  (vec-min) / (max-min)
+}
+denormalize <- function(vec,min,max) {
+  vec * (max - min) + min
+}
+
+traffic_train_diff <- normalize(traffic_train_diff, minval, maxval)
+traffic_test_diff <- normalize(traffic_test_diff, minval, maxval)
+
+```
+
+We choose 7*24=168 for the number of timesteps.
+
+```{r,fig.width=20,fig.height=10}
+lstm_num_timesteps <- 7*24
+```
+
+&nbsp;
+
+And the results? ... Wow!
+========================================================
+
+&nbsp;
+
+```{r, echo=FALSE}
+X_train <- t(sapply(1:(length(traffic_train_diff) - lstm_num_timesteps), function(x) traffic_train_diff[x:(x + lstm_num_timesteps - 1)]))
+y_train <- sapply((lstm_num_timesteps + 1):(length(traffic_train_diff)), function(x) traffic_train_diff[x])
+X_test <- t(sapply(1:(length(traffic_test_diff) - lstm_num_timesteps), function(x) traffic_test_diff[x:(x + lstm_num_timesteps - 1)]))
+y_test <- sapply((lstm_num_timesteps + 1):(length(traffic_test_diff)), function(x) traffic_test_diff[x])
+
+X_train <- expand_dims(X_train, axis = 2)
+X_test <- expand_dims(X_test, axis = 2)
+
+num_samples <- dim(X_train)[1]
+num_steps <- dim(X_train)[2]
+num_features <- dim(X_train)[3]
+
+model <- Sequential()
+model$add(LSTM(units = 4, input_shape=c(num_steps, num_features)))
+model$add(Dense(1))
+keras_compile(model, loss='mean_squared_error', optimizer='adam')
+#keras_fit(model, X_train, y_train, batch_size = 1, epochs = 500, verbose = 1)
+model <- keras_load('traffic_diffnorm.h5')
+
+pred_train <- keras_predict(model, X_train, batch_size = 1)
+pred_test <-keras_predict(model, X_test, batch_size = 1)
+
+pred_train <- denormalize(pred_train, minval, maxval)
+pred_test <- denormalize(pred_test, minval, maxval)
+
+pred_train_undiff <- pred_train + traffic_train[(lstm_num_timesteps+1):(length(traffic_train)-1)]
+pred_test_undiff <- pred_test + traffic_test[(lstm_num_timesteps+1):(length(traffic_test)-1)]
+
+df <- data_frame(time_id = 1:1231,
+                 train = c(traffic_train, rep(NA, length(traffic_test))),
+                 test = c(rep(NA, length(traffic_train)), traffic_test),
+                 pred_train = c(rep(NA, lstm_num_timesteps+1), pred_train_undiff, rep(NA, length(traffic_test))),
+                 pred_test = c(rep(NA, length(traffic_train)), rep(NA, lstm_num_timesteps+1), pred_test_undiff))
+df <- df %>% gather(key = 'type', value = 'value', train:pred_test)
+```
+
+```{r,fig.width=20,fig.height=10}
+ggplot(df, aes(x = time_id, y = value)) + geom_line(aes(color = type))
+```
+
+
+
+The end?
+========================================================
+
+&nbsp;
+
+- This is more like a beginning
+- Lots of things to explore...
+    - experiment with parameters, architectures...
+    - experiment with different datasets...
+- Have fun!
+
+&nbsp;
+
+Thanks for your attention!!
